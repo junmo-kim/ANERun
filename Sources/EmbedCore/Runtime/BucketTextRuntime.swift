@@ -73,14 +73,22 @@ public final class BucketTextRuntime: EmbeddingRuntime {
         return vectors
     }
 
+    static let visionCallsInFlight = 2
+
     public func embed(images: [PreparedImage]) async throws -> [[Float]] {
         guard let vision else { throw RuntimeError.unsupported("this model has no vision encoder") }
-        var sequences: [ModelSequence] = []
         for image in images {
             guard image.tokens <= vision.maxTokens else {
                 throw RuntimeError.unsupported("\(image.tokens) image tokens exceed \(vision.maxTokens)")
             }
-            sequences.append(.image(rows: try await vision.encode(image)))
+        }
+        let sequences: [ModelSequence]
+        if images.count <= 1 {
+            sequences = images.isEmpty ? [] : [.image(rows: try await vision.encode(images[0]))]
+        } else {
+            sequences = try await windowedMap(images, width: Self.visionCallsInFlight) { [vision] image in
+                .image(rows: try await vision.encode(image))
+            }
         }
         return try await embed(sequences: sequences)
     }

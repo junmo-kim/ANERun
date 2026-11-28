@@ -382,7 +382,9 @@ public enum Bench {
                 for _ in 0..<11 {
                     let prepared = try measure("decode_resize") { try ImagePrep.prepare(image) }
                     guard let (model, budget) = vision.model(for: prepared) else { break }
-                    let input = try measure("vision_inputs") { try vision.inputs(prepared, budget: budget) }
+                    let buffer = try vision.buffers.checkout(budget: budget)
+                    defer { vision.buffers.checkin(buffer) }
+                    let input = measure("vision_inputs") { vision.fill(buffer, with: prepared) }
                     let started = DispatchTime.now().uptimeNanoseconds
                     let output = try await model.prediction(from: input)
                     stages["vision_predict", default: []].append(Double(DispatchTime.now().uptimeNanoseconds - started) / 1e6)

@@ -255,6 +255,180 @@ public final class CoreMLBucketRunner: BucketFunctionRunner, @unchecked Sendable
     }
 }
 
+/// Reusable fp16 input buffers for one vision budget. Steady-state calls allocate nothing, and
+/// when consecutive images share the same resized dimensions, geometry-only inputs (`positions`,
+/// `position_embeddings`, `valid`, `pool`) are already populated.
+final class VisionBuffers: @unchecked Sendable {
+    let budget: Int
+    let total: Int
+    private let patchesArray: MLMultiArray
+    private let positionsArray: MLMultiArray
+    private let embeddingsArray: MLMultiArray
+    private let validArray: MLMultiArray
+    private let poolArray: MLMultiArray
+    let patches: UnsafeMutablePointer<Float16>
+    let positions: UnsafeMutablePointer<Float16>
+    let embeddings: UnsafeMutablePointer<Float16>
+    let valid: UnsafeMutablePointer<Float16>
+    let pool: UnsafeMutablePointer<Float16>
+    let provider: MLDictionaryFeatureProvider
+
+    private var dirtyPatches = 0
+    private var lastColumns = 0
+    private var lastRows = 0
+
+    static let pixelLUT: [Float16] = (0..<256).map { Float16(Float($0) / 255) }
+
+    init(budget: Int) throws {
+        self.budget = budget
+        let total = budget * 9
+        self.total = total
+        let patchWidth = CoreMLVisionEncoder.patchWidth
+        let count = NSNumber(value: total)
+        let patchesArray = try MLMultiArray(shape: [1, count, NSNumber(value: patchWidth)], dataType: .float16)
+        let positionsArray = try MLMultiArray(shape: [1, count, 2], dataType: .float16)
+        let embeddingsArray = try MLMultiArray(shape: [1, count, NSNumber(value: patchWidth)], dataType: .float16)
+        let validArray = try MLMultiArray(shape: [1, count], dataType: .float16)
+        let poolArray = try MLMultiArray(shape: [NSNumber(value: budget), count], dataType: .float16)
+        let patches = patchesArray.dataPointer.assumingMemoryBound(to: Float16.self)
+        let positions = positionsArray.dataPointer.assumingMemoryBound(to: Float16.self)
+        let embeddings = embeddingsArray.dataPointer.assumingMemoryBound(to: Float16.self)
+        let valid = validArray.dataPointer.assumingMemoryBound(to: Float16.self)
+        let pool = poolArray.dataPointer.assumingMemoryBound(to: Float16.self)
+        patches.update(repeating: 0, count: total * patchWidth)
+        positions.update(repeating: -1, count: total * 2)
+        embeddings.update(repeating: 0, count: total * patchWidth)
+        valid.update(repeating: 0, count: total)
+        pool.update(repeating: 0, count: budget * total)
+        let provider = try MLDictionaryFeatureProvider(dictionary: [
+            "patches": MLFeatureValue(multiArray: patchesArray),
+            "positions": MLFeatureValue(multiArray: positionsArray),
+            "position_embeddings": MLFeatureValue(multiArray: embeddingsArray),
+            "valid": MLFeatureValue(multiArray: validArray),
+            "pool": MLFeatureValue(multiArray: poolArray),
+        ])
+        self.patchesArray = patchesArray
+        self.positionsArray = positionsArray
+        self.embeddingsArray = embeddingsArray
+        self.validArray = validArray
+        self.poolArray = poolArray
+        self.patches = patches
+        self.positions = positions
+        self.embeddings = embeddings
+        self.valid = valid
+        self.pool = pool
+        self.provider = provider
+    }
+
+    func fill(_ image: PreparedImage, positionTable: Data) -> MLDictionaryFeatureProvider {
+        let patchWidth = CoreMLVisionEncoder.patchWidth
+        let tableRows = CoreMLVisionEncoder.tableRows
+        let width = image.width, columns = width / CoreMLVisionEncoder.patch, rows = image.height / CoreMLVisionEncoder.patch
+        let usedPatches = rows * columns
+        precondition(usedPatches <= total && width % 48 == 0 && image.height % 48 == 0)
+
+        let geometryChanged = columns != lastColumns || rows != lastRows
+        if geometryChanged {
+            if usedPatches < dirtyPatches {
+                let stale = dirtyPatches - usedPatches
+                (patches + usedPatches * patchWidth).update(repeating: 0, count: stale * patchWidth)
+                (embeddings + usedPatches * patchWidth).update(repeating: 0, count: stale * patchWidth)
+                (positions + usedPatches * 2).update(repeating: -1, count: stale * 2)
+                (valid + usedPatches).update(repeating: 0, count: stale)
+            }
+            if lastColumns > 0 && lastRows > 0 {
+                let prevGroupsPerRow = lastColumns / 3
+                for row in 0..<lastRows {
+                    for column in 0..<lastColumns {
+                        let patch = row * lastColumns + column
+                        let group = (column / 3) + prevGroupsPerRow * (row / 3)
+                        pool[group * total + patch] = 0
+                    }
+                }
+            }
+        }
+
+        let pp = patches, po = positions, pe = embeddings, pv = valid, pl = pool
+        image.rgb.withUnsafeBufferPointer { rgb in
+            Self.pixelLUT.withUnsafeBufferPointer { lut in
+                let rgbBase = rgb.baseAddress!
+                let lutBase = lut.baseAddress!
+                for row in 0..<rows {
+                    let rowPixelBase = row * 16 * width
+                    for column in 0..<columns {
+                        let patch = row * columns + column
+                        let base = patch * patchWidth
+                        let colPixelBase = column * 16
+                        for y in 0..<16 {
+                            let srcRow = rgbBase + ((rowPixelBase + y * width + colPixelBase) * 3)
+                            let dstRow = pp + (base + y * 48)
+                            for x in 0..<48 {
+                                dstRow[x] = lutBase[Int(srcRow[x])]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if geometryChanged {
+            let groupsPerRow = columns / 3
+            let poolWeight = Float16(1.0 / 9.0)
+            positionTable.withUnsafeBytes { raw in
+                let table = raw.bindMemory(to: Float16.self).baseAddress!
+                for row in 0..<rows {
+                    let yRow = (tableRows + row) * patchWidth
+                    let rowGroupOffset = groupsPerRow * (row / 3)
+                    let rowF = Float16(row)
+                    for column in 0..<columns {
+                        let patch = row * columns + column
+                        let base = patch * patchWidth
+                        po[patch * 2] = Float16(column)
+                        po[patch * 2 + 1] = rowF
+                        pv[patch] = 1
+                        let xRow = column * patchWidth
+                        for c in 0..<patchWidth {
+                            pe[base + c] = Float16(Float(table[xRow + c]) + Float(table[yRow + c]))
+                        }
+                        let group = (column / 3) + rowGroupOffset
+                        pl[group * total + patch] = poolWeight
+                    }
+                }
+            }
+            dirtyPatches = usedPatches
+            lastColumns = columns
+            lastRows = rows
+        }
+
+        return provider
+    }
+}
+
+final class VisionBufferPool: @unchecked Sendable {
+    private let lock = NSLock()
+    private var idle: [Int: [VisionBuffers]] = [:]
+    private let maxIdlePerBudget: Int
+
+    init(maxIdlePerBudget: Int = 3) {
+        self.maxIdlePerBudget = maxIdlePerBudget
+    }
+
+    func checkout(budget: Int) throws -> VisionBuffers {
+        if let reused = lock.withLock({ idle[budget]?.popLast() }) {
+            return reused
+        }
+        return try VisionBuffers(budget: budget)
+    }
+
+    func checkin(_ buffers: VisionBuffers) {
+        lock.withLock {
+            var list = idle[buffers.budget, default: []]
+            if list.count < maxIdlePerBudget { list.append(buffers) }
+            idle[buffers.budget] = list
+        }
+    }
+}
+
 /// EmbeddingGemma vision package functions vision_70, vision_140 and vision_280:
 /// 16 px patches scaled to [0, 1], 2-D position embeddings from position_embeddings.f16 (x row + y row),
 /// and a 3 x 3 average pool of the patch grid into soft tokens.
@@ -268,6 +442,7 @@ public final class CoreMLVisionEncoder: VisionEncoder, @unchecked Sendable {
     public var maxTokens: Int { budgets.last ?? 0 }
     private let models: [Int: MLModel]
     private let positionTable: Data
+    let buffers = VisionBufferPool()
 
     private init(models: [Int: MLModel], positionTable: Data) {
         self.models = models
@@ -317,7 +492,10 @@ public final class CoreMLVisionEncoder: VisionEncoder, @unchecked Sendable {
         guard let budget = budgets.first(where: { $0 >= tokens }), let model = models[budget] else {
             throw RuntimeError.unsupported("\(tokens) image tokens do not fit")
         }
-        let output = try await model.prediction(from: try inputs(image, budget: budget))
+        let buffer = try buffers.checkout(budget: budget)
+        defer { buffers.checkin(buffer) }
+        let provider = buffer.fill(image, positionTable: positionTable)
+        let output = try await model.prediction(from: provider)
         return try softTokens(output, count: tokens, budget: budget)
     }
 
@@ -327,62 +505,65 @@ public final class CoreMLVisionEncoder: VisionEncoder, @unchecked Sendable {
         return (model, budget)
     }
 
-    /// The first `count` rows of image_tokens.
+    /// The first `count` rows of image_tokens, copied directly as Float16 without a Float round-trip.
     func softTokens(_ output: MLFeatureProvider, count: Int, budget: Int) throws -> [Float16] {
         guard let soft = output.featureValue(for: "image_tokens")?.multiArrayValue else {
             throw RuntimeError.model("vision_\(budget) returned no image_tokens")
         }
-        return try rows(of: soft, count: count, width: BucketContract.hidden).flatMap { $0.map(Float16.init) }
+        return try Self.extractSoftTokens(soft, count: count)
+    }
+
+    static func extractSoftTokens(_ soft: MLMultiArray, count: Int) throws -> [Float16] {
+        let width = BucketContract.hidden
+        let shape = soft.shape.map(\.intValue)
+        let strides = soft.strides.map(\.intValue)
+        guard shape.count >= 2, shape[shape.count - 1] == width, shape[shape.count - 2] >= count else {
+            throw RuntimeError.model("unexpected output shape \(shape), want [\(count), \(width)]")
+        }
+        let rowStride = strides[strides.count - 2], columnStride = strides[strides.count - 1]
+        let total = count * width
+        switch soft.dataType {
+        case .float16:
+            let pointer = soft.dataPointer.assumingMemoryBound(to: Float16.self)
+            return [Float16](unsafeUninitializedCapacity: total) { dest, initializedCount in
+                let dst = dest.baseAddress!
+                if columnStride == 1 && rowStride == width {
+                    dst.initialize(from: pointer, count: total)
+                } else if columnStride == 1 {
+                    for row in 0..<count {
+                        (dst + row * width).initialize(from: pointer + row * rowStride, count: width)
+                    }
+                } else {
+                    for row in 0..<count {
+                        let srcRow = pointer + row * rowStride
+                        let dstRow = dst + row * width
+                        for col in 0..<width { dstRow[col] = srcRow[col * columnStride] }
+                    }
+                }
+                initializedCount = total
+            }
+        case .float32:
+            let pointer = soft.dataPointer.assumingMemoryBound(to: Float.self)
+            return [Float16](unsafeUninitializedCapacity: total) { dest, initializedCount in
+                let dst = dest.baseAddress!
+                for row in 0..<count {
+                    let srcRow = pointer + row * rowStride
+                    let dstRow = dst + row * width
+                    for col in 0..<width { dstRow[col] = Float16(srcRow[col * columnStride]) }
+                }
+                initializedCount = total
+            }
+        default:
+            throw RuntimeError.model("unexpected output type \(soft.dataType.rawValue)")
+        }
+    }
+
+    func fill(_ buffer: VisionBuffers, with image: PreparedImage) -> MLDictionaryFeatureProvider {
+        buffer.fill(image, positionTable: positionTable)
     }
 
     func inputs(_ image: PreparedImage, budget: Int) throws -> MLDictionaryFeatureProvider {
-        let total = budget * 9
-        let width = image.width, columns = width / Self.patch, rows = image.height / Self.patch
-        precondition(columns * rows <= total && width % 48 == 0 && image.height % 48 == 0)
-        let count = NSNumber(value: total)
-        let patches = try MLMultiArray(shape: [1, count, NSNumber(value: Self.patchWidth)], dataType: .float16)
-        let positions = try MLMultiArray(shape: [1, count, 2], dataType: .float16)
-        let embeddings = try MLMultiArray(shape: [1, count, NSNumber(value: Self.patchWidth)], dataType: .float16)
-        let valid = try MLMultiArray(shape: [1, count], dataType: .float16)
-        let pool = try MLMultiArray(shape: [NSNumber(value: budget), count], dataType: .float16)
-        let pp = patches.dataPointer.assumingMemoryBound(to: Float16.self)
-        let po = positions.dataPointer.assumingMemoryBound(to: Float16.self)
-        let pe = embeddings.dataPointer.assumingMemoryBound(to: Float16.self)
-        let pv = valid.dataPointer.assumingMemoryBound(to: Float16.self)
-        let pl = pool.dataPointer.assumingMemoryBound(to: Float16.self)
-        pp.update(repeating: 0, count: total * Self.patchWidth)
-        pe.update(repeating: 0, count: total * Self.patchWidth)
-        po.update(repeating: -1, count: total * 2)
-        pv.update(repeating: 0, count: total)
-        pl.update(repeating: 0, count: budget * total)
-        image.rgb.withUnsafeBufferPointer { rgb in
-            positionTable.withUnsafeBytes { raw in
-                let table = raw.bindMemory(to: Float16.self)
-                for row in 0..<rows {
-                    for column in 0..<columns {
-                        let patch = row * columns + column, base = patch * Self.patchWidth
-                        for y in 0..<16 {
-                            for x in 0..<16 {
-                                let pixel = ((row * 16 + y) * width + column * 16 + x) * 3
-                                let offset = base + (y * 16 + x) * 3
-                                for c in 0..<3 { pp[offset + c] = Float16(Float(rgb[pixel + c]) / 255) }
-                            }
-                        }
-                        po[patch * 2] = Float16(column)
-                        po[patch * 2 + 1] = Float16(row)
-                        pv[patch] = 1
-                        let xRow = column * Self.patchWidth, yRow = (Self.tableRows + row) * Self.patchWidth
-                        for c in 0..<Self.patchWidth { pe[base + c] = Float16(Float(table[xRow + c]) + Float(table[yRow + c])) }
-                        let group = (column / 3) + (columns / 3) * (row / 3)
-                        pl[group * total + patch] = Float16(1.0 / 9.0)
-                    }
-                }
-            }
-        }
-        return try MLDictionaryFeatureProvider(dictionary: [
-            "patches": MLFeatureValue(multiArray: patches), "positions": MLFeatureValue(multiArray: positions),
-            "position_embeddings": MLFeatureValue(multiArray: embeddings), "valid": MLFeatureValue(multiArray: valid),
-            "pool": MLFeatureValue(multiArray: pool),
-        ])
+        let buffer = try VisionBuffers(budget: budget)
+        return buffer.fill(image, positionTable: positionTable)
     }
 }
