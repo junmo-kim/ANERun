@@ -259,18 +259,18 @@ The same 16 GB Apple M4 (macOS 27), the same inputs, warm medians, measured on a
 
 | Apple M4, 16 GB | **ANERun** (Neural Engine) | llama.cpp (Metal GPU) | MLX (Metal GPU) | official PyTorch, fp32 (MPS GPU) |
 |---|---:|---:|---:|---:|
-| short query (32 tokens) | **7.0 ms** | 14 ms | 15–17 ms | 59–72 ms |
-| 2048-token document | **221 ms** | 406 ms | 396 ms | 616 ms |
-| 8192-token document | **1.45 s** | 2.9 s | 3.5 s | 6.6 s (13.4 GB process) |
-| image (official 280-token budget) | 484 ms | 575 ms¹ | **468 ms**² | 958 ms |
-| 10 × 2048-token documents, one request | **2.2 s** | 4.0 s | 4.0 s | 6.4 s³ |
-| 8 clients sending short queries | **412 req/s** | 189 req/s | n/a⁴ | n/a⁴ |
+| short query (32 tokens) | **5.4 ms** | 14 ms | 15–17 ms | 59–72 ms |
+| 2048-token document | **213 ms** | 406 ms | 396 ms | 616 ms |
+| 8192-token document | **1.33 s** | 2.9 s | 3.5 s | 6.6 s (13.4 GB process) |
+| image (official 280-token budget) | 518 ms | 575 ms¹ | **468 ms**² | 958 ms |
+| 10 × 2048-token documents, one request | **2.1 s** | 4.0 s | 4.0 s | 6.4 s³ |
+| 8 clients sending short queries | **440 req/s** | 189 req/s | n/a⁴ | n/a⁴ |
 | process memory, idle | **140–270 MB** | 0.8–1.2 GB | 5.1–5.7 GB held | 6.7 GB |
 | memory wired while idle | **none** | 2.1–2.6 GB | none | none |
 | uses the GPU | **no** | yes | yes | yes |
 | lowest text cosine vs official fp32 | 0.99997 | 0.999997 (BF16) / 0.99989 (Q8_0) | 0.99994 (bf16) / 0.99976 (8bit) | 1 (reference) |
 
-ANERun and llama.cpp are measured as servers over loopback HTTP; MLX and PyTorch have no embedding server here and are measured in process, which spares them the HTTP round trip. For llama.cpp and MLX each cell shows the best of BF16 and 8-bit. On an M5 Ultra ANERun takes 3.4 ms, 168 ms and 1.19 s for the three text sizes.
+ANERun and llama.cpp are measured as servers over loopback HTTP; MLX and PyTorch have no embedding server here and are measured in process, which spares them the HTTP round trip. For llama.cpp and MLX each cell shows the best of BF16 and 8-bit. The ANERun column was measured again on 2026-11-28 with the v0.3.2 package: warm HTTP medians, five rounds per case, two passes alternating with the v0.3.1 package, which reproduced its earlier numbers within 0.5 % for 8192 tokens and the image and ran up to 23 % faster for short inputs than on 2026-11-15. The other columns and the cosine row are from 2026-11-15. On an M5 Ultra ANERun took 3.4 ms, 168 ms and 1.19 s for the three text sizes with the v0.3.1 package.
 
 ¹ At `--image-min-tokens 280` (304 tokens, cosine 0.99934). llama.cpp's default budget is 134 tokens: 217 ms, but cosine 0.9963 to the official image vector.
 
@@ -285,7 +285,7 @@ ANERun and llama.cpp are measured as servers over loopback HTTP; MLX and PyTorch
 - **Leaves the GPU alone.** Nothing runs on the GPU, so a local LLM keeps all of it.
 - **Memory the OS can take back.** The process itself uses about 140–380 MB, all of it pageable: under memory pressure it is compressed or swapped like any app. The Neural Engine's working buffers are wired only while a call runs and for about 10 s after it; idle, they are purgeable. A Metal runtime keeps its buffers wired, or held, for as long as the model is loaded. Request data is never written to disk.
 - **Fast.** One Neural Engine call per text up to 8192 tokens, short texts packed together, and separate lanes so long documents and images do not hold short queries back.
-- **Accurate.** Cosine ≥ 0.99990 (median 0.999975) to the official fp32 model on every public test input, texts up to 8192 tokens and images (see [Accuracy](#accuracy)).
+- **Accurate.** Cosine ≥ 0.99994 to the official fp32 model on every public test input, texts up to 8192 tokens and images; median 0.999995 for short queries and 0.999998 for texts over 2048 tokens (see [Accuracy](#accuracy)).
 - **Checks itself.** Every model function is tested against golden outputs when it loads, and one the Neural Engine compiler got wrong is not used (see [Self-test](#self-test)).
 - **OpenAI drop-in, CLI and MCP** from one binary: `POST /v1/embeddings` with text and images, `encoding_format` float/base64, Matryoshka `dimensions` 768/512/256/128; `anerun embed`, `anerun serve`, `anerun mcp`.
 
@@ -319,7 +319,7 @@ These checks measure cosine similarity between ANERun outputs and vectors from t
 
 | Model | Reference and inputs | Observed cosine |
 |---|---|---:|
-| EmbeddingGemma 2 | Original FP32, 14 long texts of 4,097–8,192 tokens on M5 Ultra | 0.999902 minimum |
+| EmbeddingGemma 2 | Original FP32, 14 long texts of 4,097–8,192 tokens on M4 | 0.999993 minimum |
 | PPLX | Original FP32 with the publisher's int8 output quantizer, 22 inputs on M4 | 0.998850 minimum |
 | Qwen3 | Original FP32, six short inputs on M4 and one 32,768-token input | 0.999802 minimum on short inputs, 0.999897 at full context |
 
@@ -327,23 +327,24 @@ The [M4 measurements](docs/PERFORMANCE.md) include model-specific input lengths 
 
 ### EmbeddingGemma 2 validation corpus
 
-The reference is google/embeddinggemma-2 in fp32 through its official `transformers` stack on the CPU. Mean pooling over all tokens followed by L2 normalization matches `sentence-transformers` at cosine 1.0000000. Every input went through the v0.1 release binary over HTTP on an M5 Ultra with the 8,192-token cap. Inputs are public: multilingual READMEs (en/ko/ja/zh/fr) of an Apache-2.0 project, the Korean and Japanese constitutions (public domain), MIT-licensed technical documents and Apache-2.0 source code, cut to exact token counts with the document prompt; 13 images bundled with scikit-learn, networkx, llama.cpp and stable-diffusion.cpp plus synthetic ones, at the official 280-token budget. `usage.prompt_tokens` matched the reference token count in all 167 requests.
+The reference is google/embeddinggemma-2 in fp32 through its official `transformers` stack on the CPU. Mean pooling over all tokens followed by L2 normalization matches `sentence-transformers` at cosine 1.0000000. Every input went through `anerun` 0.3.1 with this release's package over HTTP on a 16 GB M4 (macOS 27.0.1) with the 8,192-token cap; the previous package gives the earlier numbers on the same Mac, identical to those measured on an M5 Ultra. Inputs are public: multilingual READMEs (en/ko/ja/zh/fr) of an Apache-2.0 project, the Korean and Japanese constitutions (public domain), MIT-licensed technical documents and this repository's MIT-licensed converter source (corpus v2), cut to exact token counts with the document prompt; 13 images bundled with scikit-learn, networkx, llama.cpp and stable-diffusion.cpp plus synthetic ones, at the official 280-token budget. `usage.prompt_tokens` matched the reference token count in all 167 requests.
 
 | Input | n | min cos | median cos |
 |---|---:|---:|---:|
-| text, one per request, 37–512 tokens | 48 | 0.999947 | 0.999975 |
+| text, one per request, 37–128 tokens | 24 | 0.999991 | 0.999995 |
+| text, one per request, 129–512 tokens | 24 | 0.999947 | 0.999976 |
 | text, one per request, 389–2048 tokens (every function size, and one token over each) | 70 | 0.999945 | 0.999976 |
 | text, 10–40 short texts (9–200 tokens) per request, packed | 200 | 0.999946 | 0.999975 |
-| text, 2049–4096 tokens (incl. 3072 / 3073) | 12 | 0.999961 | 0.999969 |
-| text, 4097–8192 tokens (incl. 6144 / 6145) | 14 | 0.999902 | 0.999936 |
-| image, one per request | 13 | 0.999954 | 0.999979 |
-| images, up to 8 per request | 13 | 0.999957 | 0.999979 |
+| text, 2049–4096 tokens (incl. 3072 / 3073) | 12 | 0.999976 | 0.999998 |
+| text, 4097–8192 tokens (incl. 6144 / 6145) | 14 | 0.999993 | 0.999998 |
+| image, one per request | 13 | 0.999960 | 0.999984 |
+| images, up to 8 per request | 13 | 0.999960 | 0.999984 |
 
-The default `--max-tokens 2048` gives the same numbers for everything up to 2048 tokens (same functions). The model package itself, checked through the Python host contract (`tools/convert/verify.py`), gives the same picture per function: 380 packed and single texts up to 2048 tokens at ≥ 0.999936 and 44 long texts at ≥ 0.999889 (the lowest at 8191–8192 tokens). To reproduce: `tools/convert/fetch.py data`, `corpus.py` and `images.py` rebuild the inputs from pinned public sources, `scripts/accuracy/reference.py` writes the reference vectors (needs PyTorch and the original model), `scripts/accuracy/compare.py` queries a running `anerun serve` (standard library only).
+The default `--max-tokens 2048` gives the same numbers for everything up to 2048 tokens (same functions). The model package itself, checked through the Python host contract (`tools/convert/verify.py`), gives the same picture per function: 380 packed and single texts up to 2048 tokens at ≥ 0.999936 and 44 long texts at ≥ 0.999996. To reproduce: `tools/convert/fetch.py data`, `corpus.py` and `images.py` rebuild the inputs from pinned public sources, `scripts/accuracy/reference.py` writes the reference vectors (needs PyTorch and the original model), `scripts/accuracy/compare.py` queries a running `anerun serve` (standard library only).
 
 ### Image input formats
 
-The official path reads an image with transformers' `load_image` (PIL): RGB, EXIF orientation applied, alpha dropped. `anerun` decodes JPEG with its own decoder (libjpeg-turbo's algorithms, bit-exact with PIL) and every other format with ImageIO, taking the decoded values without colour management. Measured like the table above (over HTTP, M5 Ultra; JPEG: the 4 JPEG files among the public images), with the 13 public images re-encoded in each format (`scripts/accuracy/formats.py`; 3 files whose data URLs were over the 8 MiB limit are left out; the reference reads the same files with `load_image`, HEIC through `pillow-heif` 1.8.1, libheif 1.23.6):
+The official path reads an image with transformers' `load_image` (PIL): RGB, EXIF orientation applied, alpha dropped. `anerun` decodes JPEG with its own decoder (libjpeg-turbo's algorithms, bit-exact with PIL) and every other format with ImageIO, taking the decoded values without colour management. The cosines in this table were measured with the package of v0.3.1 and earlier; the decoded-pixel comparison does not depend on the package. Measured like the table above (over HTTP, M5 Ultra; JPEG: the 4 JPEG files among the public images), with the 13 public images re-encoded in each format (`scripts/accuracy/formats.py`; 3 files whose data URLs were over the 8 MiB limit are left out; the reference reads the same files with `load_image`, HEIC through `pillow-heif` 1.8.1, libheif 1.23.6):
 
 | Format | Decoder | n | min cos | median cos | Decoded pixels vs PIL |
 |---|---|---:|---:|---:|---|

@@ -138,16 +138,17 @@ Versions:
 
 | | ANERun | llama.cpp BF16 | llama.cpp Q8_0 | MLX bf16 | MLX 8bit | PyTorch fp32 MPS | PyTorch bf16 MPS | PyTorch fp32 CPU |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| 32-token query | 7.0 ms | 14.3 ms | 14.1 ms | 17 ms | 15 ms | 59–72 ms | 76 ms | 47 ms |
-| 512 tokens | 34.8 ms | | | | | 116 ms | 167 ms | 327 ms |
-| 2048 tokens | 221 ms | 406 ms | | 396 ms | 416 ms | 616 ms | 598 ms | 1,575 ms |
-| 8192 tokens | 1.45 s | 2.94 s | 2.90 s | 3.54 s | 3.68 s | 6.6 s | swap guard | 13.9 s |
-| image (official 280-token layout) | 484 ms | 575 ms (≥ 280 tokens) | | 468 ms | – | 958 ms | 747 ms | 2,065 ms |
-| 10 × 32 tokens | 20 ms | 53 ms | | 41.6 ms | | 75 ms | 120 ms | 201 ms |
-| 10 × 2048 tokens | 2.20 s | 4.03 s | | 4.01 s | 4.14 s | 6.44 s (logged out) | 6.5 s | 15.5 s |
-| 8 clients × 256 queries | 412 req/s | 189 req/s | | – | – | – | – | – |
+| 32-token query | 5.4 ms | 14.3 ms | 14.1 ms | 17 ms | 15 ms | 59–72 ms | 76 ms | 47 ms |
+| 512 tokens | 31 ms | | | | | 116 ms | 167 ms | 327 ms |
+| 2048 tokens | 213 ms | 406 ms | | 396 ms | 416 ms | 616 ms | 598 ms | 1,575 ms |
+| 8192 tokens | 1.33 s | 2.94 s | 2.90 s | 3.54 s | 3.68 s | 6.6 s | swap guard | 13.9 s |
+| image (official 280-token layout) | 518 ms | 575 ms (≥ 280 tokens) | | 468 ms | – | 958 ms | 747 ms | 2,065 ms |
+| 10 × 32 tokens | 19 ms | 53 ms | | 41.6 ms | | 75 ms | 120 ms | 201 ms |
+| 10 × 2048 tokens | 2.10 s | 4.03 s | | 4.01 s | 4.14 s | 6.44 s (logged out) | 6.5 s | 15.5 s |
+| 8 clients × 256 queries | 440 req/s | 189 req/s | | – | – | – | – | – |
 | lowest / median text cosine vs fp32 | 0.99997 / 0.99998 | 0.999997 / 0.999998 | 0.99989 / 0.99992 | 0.99994 / 0.99996 | 0.99976 | 1 | | reference |
 
+- **ANERun column:** The ANERun column was measured again on 2026-11-28 with the v0.3.2 package: warm HTTP medians, five rounds per case, two passes alternating with the v0.3.1 package, which reproduced its earlier numbers within 0.5 % for 8192 tokens and the image and ran up to 23 % faster for short inputs than on 2026-11-15. The other columns and the cosine row are from 2026-11-15. Harness: `scripts/bench/http_bench.py`.
 - **Empty cells** were not measured in that configuration.
 - **"Swap guard"**: the run was stopped once swap grew 2 GB.
 - **Logged out**: the fp32 MPS 8192-token and 10 × 2048 cases completed only with the user logged out (process 13.4 / 13.1 GB); with apps open they ran out of memory.
