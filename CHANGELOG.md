@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.2
+
+EmbeddingGemma 2 is closer to the original model. Short queries of up to 128 tokens now reach a median cosine of 0.999995 to the original fp32 vectors (was 0.999972), texts over 2,048 tokens a lowest cosine of 0.999993 (was 0.999902), and images a median of 0.999984 (was 0.999979). Texts of 129–2,048 tokens give the same vectors as before, so existing indexes stay valid: on the public test set, new queries against old document vectors returned the same top five results for all 48 queries. On an M4 over HTTP, an 8,192-token text takes 1.33 s instead of 1.44 s and an image 518 ms instead of 488 ms; short queries and texts up to 2,048 tokens take the same time as before. To switch an existing installation, run `anerun models install --model embeddinggemma-2`; until then `anerun serve` and `anerun doctor` print a reminder.
+
 ## v0.3.1
 
 [Valen-4B](https://huggingface.co/junmo-k/valen-4b-ane) brings local text and image decisions to the M4 Mac mini (h16g) on macOS 27. Across nine text and image inputs, every choice and token count matched the original model on both first and repeated requests. The largest candidate probability difference was 0.042 percentage points. On the tested 16 GiB Mac, six short text requests took 0.38–0.45 seconds on repeat. A 133-token image request took 0.82 seconds on repeat, and a larger 768-patch image took 1.42 seconds in a separate traced run. If you installed a v0.3.0 Valen bundle, reinstall with `anerun models install --model valen-4b` on h16g. Other chips require a matching local device-operator bundle.
