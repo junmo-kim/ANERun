@@ -77,6 +77,18 @@ def rope_tables(n, hd, theta):
     return emb.cos(), emb.sin()
 
 
+GELU_C = 0.7978845608028654  # sqrt(2 / pi)
+# Functions whose MLPs use the written-out GELU. It costs 0-2% at 64/128 rows and about 10% in the long functions;
+# 256-2048 keep Core ML's gelu op (written out it cost 13-20% there).
+EXACT_GELU_SIZES = (64, 128) + WINDOW_LONG
+
+
+def gelu(x):
+    """GELU, tanh approximation, written out: Core ML's gelu op loses about ten times more precision in fp16 on the
+    Neural Engine than this form (measured on the vision MLP: relative error 0.0144 vs 0.0012)."""
+    return x * (0.5 + 0.5 * torch.tanh(x * (GELU_C + GELU_C * 0.044715 * x * x)))
+
+
 def attend_fold(q, k, v, bias, kvh):
     """q [1,4,Sq,hd], k/v [1,kvh,Sk,hd], bias broadcastable to [1,4,Sq,Sk] -> [1,4,Sq,hd]"""
     nh, sq, hd, sk = (int(t) for t in (q.shape[1], q.shape[2], q.shape[3], k.shape[2]))  # static when traced
@@ -127,7 +139,7 @@ class Weights(nn.Module):
         self.global_layers = [i for i, m in enumerate(self.layers) if not m.swa]
 
 
-def layer(W, i, x, x0, c, s, attend):
+def layer(W, i, x, x0, c, s, attend, exact_gelu=True):
     """Decoder layer i over x [1,S,512]; x0 = inputs_embeds (per-layer input).
     attend(q, k, v, kvh) -> [1,4,S,hd] is the attention (masks are bound by the caller)."""
     m = W.layers[i]
@@ -141,10 +153,11 @@ def layer(W, i, x, x0, c, s, attend):
     o = attend(q, k, v, kvh).transpose(1, 2).reshape(1, -1, 4 * hd)
     x = x + rms(F.linear(o, m.o_proj), m.post_attention_layernorm)
     h = rms(x, m.pre_feedforward_layernorm)
-    h = F.linear(F.gelu(F.linear(h, m.gate_proj), approximate="tanh") * F.linear(h, m.up_proj), m.down_proj)
+    act = gelu if exact_gelu else (lambda t: F.gelu(t, approximate="tanh"))
+    h = F.linear(act(F.linear(h, m.gate_proj)) * F.linear(h, m.up_proj), m.down_proj)
     x = x + rms(h, m.post_feedforward_layernorm)
     ple = rms(F.linear(x0, m.ple_w) * (512 ** -0.5), W.ple_norm)
-    gte = F.gelu(F.linear(x, m.ple_gate), approximate="tanh") * ple
+    gte = act(F.linear(x, m.ple_gate)) * ple
     x = x + rms(F.linear(gte, m.ple_proj), m.ple_block_post_per_layer_input_norm)
     return x * m.scalar
 
@@ -244,7 +257,7 @@ class Bucket(nn.Module):
         glb, loc = full_attention(global_bias), full_attention(local_bias)
         for i, m in enumerate(self.W.layers):
             c, s = self.t.get(m)
-            x = layer(self.W, i, x, inputs_embeds, c, s, loc if m.swa else glb)
+            x = layer(self.W, i, x, inputs_embeds, c, s, loc if m.swa else glb, self.S in EXACT_GELU_SIZES)
         return head(self.W, x, pool)
 
 
@@ -269,7 +282,7 @@ class Window(nn.Module):
             glb = full_attention(global_or_key_bias)
         for i, m in enumerate(self.W.layers):
             c, s = self.t.get(m)
-            x = layer(self.W, i, x, inputs_embeds, c, s, loc if m.swa else glb)
+            x = layer(self.W, i, x, inputs_embeds, c, s, loc if m.swa else glb, self.S in EXACT_GELU_SIZES)
         return head(self.W, x, pool)
 
 

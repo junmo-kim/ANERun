@@ -26,6 +26,18 @@ def norm(x, module):
     return y * module.weight if module.with_scale else y
 
 
+GELU_C = 0.7978845608028654  # sqrt(2 / pi)
+
+
+def mlp(module, x):
+    """The tower's gated MLP with GELU (tanh approximation) written out. Core ML's gelu op on the Neural Engine
+    loses about ten times more precision in fp16 than the explicit tanh form (layer 9: relative error 0.0144 vs
+    0.0012)."""
+    gate = module.gate_proj(x)
+    act = gate * (0.5 + 0.5 * torch.tanh(gate * (GELU_C + GELU_C * 0.044715 * gate * gate)))
+    return module.down_proj(act * module.up_proj(x))
+
+
 class VisionGraph(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
@@ -52,7 +64,7 @@ class VisionGraph(torch.nn.Module):
             weights = torch.softmax(q @ k.transpose(-1, -2) + key_bias, dim=-1)
             mix = (weights @ v).transpose(1, 2).reshape(1, -1, self.width)
             x = x + norm(attn.o_proj(mix), layer.post_attention_layernorm)
-            x = x + norm(layer.mlp(norm(x, layer.pre_feedforward_layernorm)), layer.post_feedforward_layernorm)
+            x = x + norm(mlp(layer.mlp, norm(x, layer.pre_feedforward_layernorm)), layer.post_feedforward_layernorm)
         # Swift supplies one 3x3 average per soft token. The tower's sqrt(width)
         # factor before RMSNorm is equivalent to dividing epsilon by width.
         pooled = pool @ x
