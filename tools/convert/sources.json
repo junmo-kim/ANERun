@@ -80,8 +80,8 @@
   "code_fixture": {
    "name": "anerun-eg2-converter-v2", "license": "MIT",
    "sources": [
-    {"path": "tools/convert/eg2.py", "sha256": "ad26359eb3349847846b7c758bdc8c2a6e94191bba3dd0a44fe29384559578ab"},
-    {"path": "tools/convert/host.py", "sha256": "978f33375618ea860d7c2a1a8001b22dc2810d6e7780245d74cedf00d5880ee2"}
+    {"path": "tools/convert/fixtures/corpus-v2-eg2.py.txt", "origin": "tools/convert/eg2.py", "sha256": "ad26359eb3349847846b7c758bdc8c2a6e94191bba3dd0a44fe29384559578ab"},
+    {"path": "tools/convert/fixtures/corpus-v2-host.py.txt", "origin": "tools/convert/host.py", "sha256": "978f33375618ea860d7c2a1a8001b22dc2810d6e7780245d74cedf00d5880ee2"}
    ]
   },
   "historical_code_fixture": {"version": "aneembed-corpus/1", "name": "hf-eg2-modeling-code", "package": "transformers", "package_version": "5.22.2", "license": "Apache-2.0", "sha256": "f0376b13fb5230b349ce269c4fb40906931744a84df57c1d208f46032941eda7"}

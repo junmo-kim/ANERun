@@ -46,12 +46,12 @@ def main(src_dir, out):
     code = corpus["code_fixture"]
     parts = []
     for entry in code["sources"]:
-        payload = here.with_name(Path(entry["path"]).name).read_bytes()
+        payload = (here.parents[2] / entry["path"]).read_bytes()   # frozen copies: the corpus does not follow code edits
         if hashlib.sha256(payload).hexdigest() != entry["sha256"]:
             raise ValueError(f"{entry['path']} differs from the pinned {corpus['version']} fixture")
         parts.append(payload.decode("utf-8"))
     docs.append({"name": code["name"], "lang": "code", "license": code["license"],
-                 "source": " + ".join(entry["path"] for entry in code["sources"]), "text": "\n".join(parts)})
+                 "source": " + ".join(entry.get("origin", entry["path"]) for entry in code["sources"]), "text": "\n".join(parts)})
     for doc in docs:
         doc["corpus_version"] = corpus["version"]
     os.makedirs(out, exist_ok=True)
