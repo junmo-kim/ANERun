@@ -23,11 +23,11 @@ public struct ModelSource: Sendable, Equatable {
         self.manifestSHA256 = manifestSHA256
     }
 
-    /// The package this build installs: junmo-k/embeddinggemma-2-ane at the commit of its 0.1.0 upload, checked
+    /// The package this build installs: junmo-k/embeddinggemma-2-ane at the commit of its 0.3.2 upload, checked
     /// against the manifest hash below.
     public static let pinned = ModelSource(
-        repository: "junmo-k/embeddinggemma-2-ane", revision: "f21079a26cd857807917d17fb4a8c30913cf2def",
-        manifestSHA256: "b21e57adf6931e3838d5a1e346befcf2e13adfb43906cb7bad1dff1274912d8a")
+        repository: "junmo-k/embeddinggemma-2-ane", revision: "97558c0a567bd56e04f1a9945d69a16e1628587b",
+        manifestSHA256: "91ff64fc39cec9a55ea51eeab8440425093728df57b20770f04fe55989231d6e")
 
     public var isPublished: Bool { revision != "UNPUBLISHED" && !revision.isEmpty }
 
