@@ -73,9 +73,9 @@ struct ModelTests {
         let packed = try await runtime.embed(tokenized: [ids])[0]
         let long = try await engine.embed(ids: ids)
         #expect(Vectors.cosine(packed, long) > 0.999)
-        // Without --max-tokens above 2048 the long functions are not loaded and such texts are rejected.
+        // Without --max-tokens above 2048 the long functions are not loaded: such texts are rejected unless truncated.
         await #expect(throws: ServiceError.self) {
-            _ = try await ModelGate.service(maxTokens: 2048).embedTexts([Self.text(tokens: 2100, service: service)])
+            _ = try await ModelGate.service(maxTokens: 2048).embedTexts([Self.text(tokens: 2100, service: service)], truncate: false)
         }
     }
 
