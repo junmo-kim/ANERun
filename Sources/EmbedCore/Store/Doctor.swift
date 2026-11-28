@@ -73,6 +73,7 @@ public enum Doctor {
                     : (manifest.checkForLoad(in: directory), [])
                 model["name"] = .string(manifest.model)
                 model["manifest_sha256"] = .string(manifest.sha256)
+                if let note = config.unpinnedRevisionNote { model["update"] = .string(note) }
                 model["manifest"] = [
                     "files": .int(manifest.sourceFiles.count), "checked": .string(verify ? "sha256" : "size and small-asset sha256"),
                     "problems": .array(issues.map { .string("\($0.path): \($0.issue)") }),

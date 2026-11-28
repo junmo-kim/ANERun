@@ -50,6 +50,7 @@ public enum ModelLoader {
                                hint: "run `anerun models install --model \(config.modelID?.rawValue ?? "embeddinggemma-2")` or pass --model-dir")
         }
         let (manifest, unavailablePackages) = try checkPackage(config, allowDegradedPPLX: true, log: log)
+        if let note = config.unpinnedRevisionNote { log("note: " + note) }
         if manifest.pplxContract != nil {
             return try await pplx(config, manifest: manifest, unavailablePackages: unavailablePackages,
                                   started: started, log: log)

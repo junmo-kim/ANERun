@@ -76,6 +76,8 @@ public struct Config: Sendable, Equatable {
     public private(set) var sources: [String: Source] = [:]
     public private(set) var modelID: ModelID?
     private var resolvedModelDirectory: URL?
+    /// True when resolvedModelDirectory is the store's active revision for the selected model (not an install target).
+    private var resolvedFromActiveRevision = false
     var modelResolutionError: ServiceError?
 
     /// Resolves every option from `flags` (name without dashes -> value) and `environment`.
@@ -177,6 +179,7 @@ public struct Config: Sendable, Equatable {
             }
             if command != "doctor" { _ = try ModelID.identify(in: directory, expected: model) }
             selected.resolvedModelDirectory = directory
+            selected.resolvedFromActiveRevision = true
         } else if let explicit {
             let directory = explicit.standardizedFileURL.resolvingSymlinksInPath()
             let model = command == "doctor" ? try? ModelID.identify(in: directory) : try ModelID.identify(in: directory)
@@ -206,6 +209,7 @@ public struct Config: Sendable, Equatable {
     public func withModelDirectory(_ directory: URL) -> Config {
         var copy = self
         copy.resolvedModelDirectory = directory.standardizedFileURL.resolvingSymlinksInPath()
+        copy.resolvedFromActiveRevision = false
         return copy
     }
 
@@ -226,6 +230,23 @@ public struct Config: Sendable, Equatable {
         guard revision.hasPrefix(repairPrefix) else { return nil }
         let suffix = revision.dropFirst(repairPrefix.count)
         return suffix.count == 8 && suffix.allSatisfy { $0.isASCII && $0.isHexDigit } ? digest : nil
+    }
+
+    /// The active revision of a named selection when it is not the one this build pins, for example a package an
+    /// earlier release installed. It still loads (checked against its own manifest); `anerun models install`
+    /// switches to the pinned revision.
+    public var unpinnedActiveRevision: String? {
+        guard resolvedFromActiveRevision, let source = modelID?.source, source.isPublished, explicitModelDirectory == nil,
+              let revision = resolvedModelDirectory?.lastPathComponent, pinnedManifestSHA256 == nil
+        else { return nil }
+        return revision
+    }
+
+    /// One line for serve and doctor about an unpinned active revision, or nil.
+    public var unpinnedRevisionNote: String? {
+        guard let revision = unpinnedActiveRevision, let model = modelID else { return nil }
+        return "the active \(model.rawValue) package is revision \(revision), not \(model.source.revision) pinned in "
+            + "this build; run `anerun models install --model \(model.rawValue)` to switch"
     }
 
     public var limits: ServiceLimits {

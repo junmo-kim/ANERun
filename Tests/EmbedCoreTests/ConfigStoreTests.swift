@@ -729,6 +729,11 @@ struct ModelStoreTests {
         #expect(config.pinnedManifestSHA256 == ModelSource.pinned.manifestSHA256)
         let selected = try raw.selectingModel(for: "serve")
         #expect(selected.pinnedManifestSHA256 == nil)
+        #expect(config.unpinnedActiveRevision == nil && explicit.unpinnedActiveRevision == nil)
+        #expect(selected.unpinnedActiveRevision == "local-0123456789ab")
+        #expect(selected.unpinnedRevisionNote?.contains("anerun models install --model embeddinggemma-2") == true)
+        // Warming an install target is not the active selection: no reminder before it is activated.
+        #expect(selected.withModelDirectory(store.modelsDirectory.appendingPathComponent("local-0123456789ab")).unpinnedActiveRevision == nil)
         #expect(throws: Never.self) { try ModelLoader.checkPackage(selected) }
 
         let named = ModelStore(dataDirectory: dataDirectory, model: .embeddingGemma2)
