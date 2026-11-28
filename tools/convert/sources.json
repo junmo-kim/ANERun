@@ -1,0 +1,94 @@
+{
+ "format": "aneembed-sources/1",
+ "note": "fetch.py verifies model and evaluation data by SHA-256. corpus.py verifies the tracked code fixture. Historical IDs describe earlier corpus versions.",
+ "models": [
+  {
+   "id": "google/embeddinggemma-2",
+   "revision": "f9972ac22e696a105c482202646979e33e4b5a1e",
+   "license": "Apache-2.0 (Gemma Prohibited Use Policy applies)",
+   "dir": "embeddinggemma-2",
+   "sha256": {
+    "model.safetensors": "197a32965d4b1105faf060417baa899e193fb73cd401f42ec9295234d5553d79",
+    "tokenizer.json": "4d777ef5bdc1aa36227abdfb77c3e49e7b9c892d16e1b6bda41c393504828be4",
+    "config.json": "b8f1e9931b57fbc054acdb445c41765d55b0074c58d145fa82839941ad1b5bb3",
+    "tokenizer.model": "e594c8a90eb08d8bda498ff4747977dc827ae0c3c56b5c0d41a605a22d02ef03",
+    "tokenizer_config.json": "17bd5d6e9364ca49a534e1502076593317c298d4a663623091ed45388f004874",
+    "config_sentence_transformers.json": "031e56a498d33c349ab489a21885bcfe25b4fcba841149dc99e1e90d4a7c28f5",
+    "preprocessor_config.json": "ea2ae257e901064abdd98dceb19f2b0da06af600bed15e0f99f5c85c37ee9d78",
+    "processor_config.json": "168f6a08522f3ce5dea596d94d003af2fd691742d4f41fe1f9d8cce76bfbf69c",
+    "modules.json": "3d02572a0455b832de67fb8e63a54981bc7e8b46e337c95e917bd8122a533bfd",
+    "sentence_bert_config.json": "b1bcd9f2dce3ae863b359e87d0710b5dbc3314a59ecb4e2f97c7778fc8e4b228",
+    "1_Pooling/config.json": "8759bdf7c77efc7df7723f64856a593c8943b71ee38baf2a88771fbaf78438f9",
+    "2_Normalize/config.json": "cdb09dfca347a56aa2d691744e38d5ad3c7cbc2834e7181272b9a15328b82524",
+    "README.md": "2c058c304c68221f1de80979594036eff3972b2bce686bb7b0f43621a6b0b011",
+    "chat_template.jinja": "4b852efc0b9960283e735363331e6f325b33bc74bdbaa076f595bc4e9b94d85e"
+   }
+  }
+ ],
+ "pplx": {
+  "id": "perplexity-ai/pplx-embed-v1-0.6b",
+  "revision": "2c4d510dd4a732063c31a0f70193e35067b51fd8",
+  "license": "MIT",
+  "dir": "pplx-embed-v1-0.6b",
+  "sha256": {
+   "model.safetensors": "2c8d2f64f8268ccd5383b7f9bea8e660349aa6a151bd68a5a47f4c129f2a4974",
+   "config.json": "f7865547ecc1c077c5b1f83913fb9816a6586c676ccf3e0f7f00105a1b0c1c6c",
+   "tokenizer.json": "c6fb5c5bbba5fa5f8332edfb6d8aa67bd7fb3d75365b1765f108201698eaebf5",
+   "tokenizer_config.json": "29282daeff3615d49f86c9e6c6fefb3a798a516da39f9297f3fcb2a8b39e0180",
+   "1_Pooling/config.json": "a30548e8bc4255aafe5e5c638f6b15712eebbc8e84ea5988a5835f976c412907",
+   "README.md": "a93b396552ebd0448259bf4b74605fcb6cbd46aeaf792e40b9bfaf22a2a4448e"
+  }
+ },
+ "qwen": {
+  "id": "Qwen/Qwen3-Embedding-0.6B",
+  "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+  "license": "Apache-2.0",
+  "dir": "Qwen3-Embedding-0.6B",
+  "sha256": {
+   "1_Pooling/config.json": "37bf193fa101f19101bfad9c31d3eb0f786e247b7b1e5cb7f007d730eed1ddbd",
+   "README.md": "c34d9b7e5a267ad3fdd13227a253686bc90844ff4744a2a6a86c7c905e3d06f3",
+   "config.json": "b5bf1f51fc45be473a54718cef92448d90a1be001bf9b9a44b8c7f10a19feaa9",
+   "config_sentence_transformers.json": "10667c72ddb772627bf1780cb7f86af8e2ae0032b8c243c731172064105c6961",
+   "merges.txt": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+   "model.safetensors": "0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd",
+   "modules.json": "84e40c8e006c9b1d6c122e02cba9b02458120b5fb0c87b746c41e0207cf642cf",
+   "tokenizer.json": "def76fb086971c7867b829c23a26261e38d9d74e02139253b38aeb9df8b4b50a",
+   "tokenizer_config.json": "253153d0738ceb4c668d2eff957714dd2bea0b56de772a9fdccd96cbf517e6a0",
+   "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+  }
+ },
+ "files": [
+  {"file": "omlx-README.md", "repo": "https://github.com/jundot/omlx", "commit": "8b7e7018cb6f824c55f666aab817db4613e86bd7", "path": "README.md", "license": "Apache-2.0", "sha256": "f69e5df49a5f2f864bd44aa649d79f714aa3b6aefc9ad42fa696eb6f80b5b0d4"},
+  {"file": "omlx-README.ko.md", "repo": "https://github.com/jundot/omlx", "commit": "8b7e7018cb6f824c55f666aab817db4613e86bd7", "path": "README.ko.md", "license": "Apache-2.0", "sha256": "e3ec0845df0a3e586a0feb286c03f16e3faf84ad3c169bc4dd45d7545ab51e9c"},
+  {"file": "omlx-README.ja.md", "repo": "https://github.com/jundot/omlx", "commit": "8b7e7018cb6f824c55f666aab817db4613e86bd7", "path": "README.ja.md", "license": "Apache-2.0", "sha256": "3cbf7c6acd501eabbb0ef042f7806cba4e838f187616cff33666720cdb9ed346"},
+  {"file": "omlx-README.zh.md", "repo": "https://github.com/jundot/omlx", "commit": "8b7e7018cb6f824c55f666aab817db4613e86bd7", "path": "README.zh.md", "license": "Apache-2.0", "sha256": "35bb016e602aeb8e8aa41d6b551ee9cc9521a5b933f1d5fed7a95900ec24b3a6"},
+  {"file": "omlx-README.fr.md", "repo": "https://github.com/jundot/omlx", "commit": "8b7e7018cb6f824c55f666aab817db4613e86bd7", "path": "README.fr.md", "license": "Apache-2.0", "sha256": "12cee2fb8a46e87bf145391c98a3db224ed6bb3d19ba3d149958b9d4790be60c"},
+  {"file": "ko_constitution.wiki", "url": "https://ko.wikisource.org/w/index.php?oldid=407850&action=raw", "page": "ko.wikisource.org 대한민국헌법 (제10호)", "revision": 407850, "license": "public domain (statute text; Wikisource markup CC BY-SA 4.0)", "sha256": "cc564afc5abbb401a7027951f83631ca5ed40c727d9d3849103eca0ff7e677cd"},
+  {"file": "ja_constitution.wiki", "url": "https://ja.wikisource.org/w/index.php?oldid=235821&action=raw", "page": "ja.wikisource.org 日本國憲法", "revision": 235821, "license": "public domain (statute text; Wikisource markup CC BY-SA 4.0)", "sha256": "433ea3f2db4d0f655a55668349dad11a65dff7608c92bf9ee1f0145178269a6a"},
+  {"file": "sdcpp-server-api.md", "repo": "https://github.com/leejet/stable-diffusion.cpp", "commit": "0678d04ae72bc13a0b8fb1392fb8f161bbcb6488", "path": "examples/server/api.md", "license": "MIT", "sha256": "4d99663b3bdfe0c07cdcace56fea3e6bc464925312e9cb26c9d14f9ae0dd8b8b"},
+  {"file": "ggml-gguf.md", "repo": "https://github.com/leejet/ggml", "commit": "d803c238f67915fb825a9aa4df27b99356d51597", "path": "docs/gguf.md", "license": "MIT", "note": "the ggml submodule of stable-diffusion.cpp at the commit above; same bytes in ggml-org/ggml at this commit", "sha256": "1dead27b6a522709f0127d194e58c21dbbbf00ba1c64fe37c54d1a9048b05020"},
+  {"file": "llamacpp-server-README.md", "repo": "https://github.com/ggml-org/llama.cpp", "commit": "171e8846b4af9766c354064cb776cb34a50f053f", "path": "tools/server/README.md", "license": "MIT", "sha256": "b45beb0842fcc98709b7df26d22da93db5f73f88386f0a6a9d6c18eac522b024"},
+  {"file": "llamacpp-build.md", "repo": "https://github.com/ggml-org/llama.cpp", "commit": "171e8846b4af9766c354064cb776cb34a50f053f", "path": "docs/build.md", "license": "MIT", "sha256": "b405f2afa67b3d3659f9c3f0b340e4298a25bd9048a3a8a085ad7e0e20f24100"},
+  {"file": "test-1.jpeg", "repo": "https://github.com/ggml-org/llama.cpp", "commit": "171e8846b4af9766c354064cb776cb34a50f053f", "path": "tools/mtmd/test-1.jpeg", "license": "MIT", "sha256": "2dff664c0c8aaea18aff8cbe7e868845b775e90cdd7a0bac98df709b131deaa3"},
+  {"file": "llama1-banner.png", "repo": "https://github.com/ggml-org/llama.cpp", "commit": "171e8846b4af9766c354064cb776cb34a50f053f", "path": "media/llama1-banner.png", "license": "MIT", "sha256": "0c93eabed78e3691b0555c3a2f3686e9bf2f9436b6aefda111309aa9ed33e7bb"},
+  {"file": "matmul.png", "repo": "https://github.com/ggml-org/llama.cpp", "commit": "171e8846b4af9766c354064cb776cb34a50f053f", "path": "media/matmul.png", "license": "MIT", "sha256": "0d6484cc146bbfcc1e8eae12ed0290057bfabeb7944d24d15d5d78995364bde4"},
+  {"file": "cat_with_sd_cpp_20184.png", "repo": "https://github.com/leejet/stable-diffusion.cpp", "commit": "0678d04ae72bc13a0b8fb1392fb8f161bbcb6488", "path": "assets/cat_with_sd_cpp_20184.png", "license": "MIT", "sha256": "e9793983097533c1e67e4bedc5afd159d98922d40d9ec653a8b77f06c0366467"},
+  {"file": "newton_0.jpg", "repo": "https://github.com/leejet/stable-diffusion.cpp", "commit": "0678d04ae72bc13a0b8fb1392fb8f161bbcb6488", "path": "assets/photomaker_examples/newton_man/newton_0.jpg", "license": "MIT", "sha256": "312532bd8fa2222662aa6807569c710df63640ff00d8984639c358af1128c2ff"}
+ ],
+ "corpus": {
+  "version": "aneembed-corpus/2",
+  "code_fixture": {
+   "name": "anerun-eg2-converter-v2", "license": "MIT",
+   "sources": [
+    {"path": "tools/convert/eg2.py", "sha256": "ad26359eb3349847846b7c758bdc8c2a6e94191bba3dd0a44fe29384559578ab"},
+    {"path": "tools/convert/host.py", "sha256": "978f33375618ea860d7c2a1a8001b22dc2810d6e7780245d74cedf00d5880ee2"}
+   ]
+  },
+  "historical_code_fixture": {"version": "aneembed-corpus/1", "name": "hf-eg2-modeling-code", "package": "transformers", "package_version": "5.22.2", "license": "Apache-2.0", "sha256": "f0376b13fb5230b349ce269c4fb40906931744a84df57c1d208f46032941eda7"}
+ },
+ "packaged": [
+  {"file": "china.jpg", "package": "scikit-learn", "version": "1.9.1", "path": "sklearn/datasets/images/china.jpg", "license": "CC BY 2.0 (see sklearn/datasets/images/README.txt)", "sha256": "8378025ad2519d649d02e32bd98990db4ab572357d9f09841c2fbfbb4fefad29"},
+  {"file": "flower.jpg", "package": "scikit-learn", "version": "1.9.1", "path": "sklearn/datasets/images/flower.jpg", "license": "CC BY 2.0 (see sklearn/datasets/images/README.txt)", "sha256": "a77f6ec41e353afdf8bdff2ea981b2955535d8d83294f8cfa49cf4e423dd5638"},
+  {"file": "test_house_with_colors.png", "package": "networkx", "version": "3.7", "path": "networkx/drawing/tests/baseline/test_house_with_colors.png", "license": "BSD-3-Clause", "sha256": "1508bda48445c23ab882f801f1c0dd0472f97ae414245c3ab1094005fda4455a"}
+ ]
+}

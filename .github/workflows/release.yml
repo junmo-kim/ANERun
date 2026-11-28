@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+# One release run per tag at a time; a second push of the same tag waits instead of racing the publish.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build release candidate with CoreAI
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode with the CoreAI SDK
+        shell: bash
+        run: |
+          for developer in "$(xcode-select -p)" /Applications/Xcode*.app/Contents/Developer; do
+            export DEVELOPER_DIR="$developer"
+            if sdk=$(xcrun --sdk macosx --show-sdk-path 2>/dev/null) && \
+              [[ -d "$sdk/System/Library/Frameworks/CoreAI.framework" ]]; then
+              echo "DEVELOPER_DIR=$developer" >> "$GITHUB_ENV"
+              xcodebuild -version && swift --version
+              exit 0
+            fi
+          done
+          echo "::error::The release requires Xcode with the macOS CoreAI SDK."
+          exit 1
+
+      - name: Test
+        run: swift test
+
+      - name: Release workflow contract
+        run: ruby Tests/Integration/release-workflow-contract.rb
+
+      - name: Build (release, stripped) + package
+        run: |
+          swift build -c release -Xswiftc -DANERUN_REQUIRE_COREAI -Xlinker -s
+          BIN=.build/release/anerun
+          codesign --verify --strict "$BIN"
+          ANERUN_CHECK_RELEASE_COREAI=1 Tests/Integration/release-binary-launch-smoke.sh "$BIN"
+          EXPECTED_VERSION="anerun ${GITHUB_REF_NAME#v}"
+          ACTUAL_VERSION="$("$BIN" --version)"
+          if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "::error::tag/binary version mismatch: expected '$EXPECTED_VERSION', got '$ACTUAL_VERSION'"
+            exit 1
+          fi
+          TARBALL="anerun-${GITHUB_REF_NAME}-macos-arm64.tar.gz"
+          scripts/package-rc.sh "$BIN" dist
+          test -f "dist/${TARBALL}.sha256"
+
+      - name: Generate release notes
+        run: scripts/gen-release-notes.sh "${GITHUB_REF_NAME}" > dist/RELEASE_NOTES.md
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: anerun-release-candidate
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  verify-macos-15:
+    name: verify packaged release (macOS 15)
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Download release candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: anerun-release-candidate
+          path: dist
+
+      - name: Verify checksum, package, signature, and launch
+        run: |
+          TARBALL="anerun-${GITHUB_REF_NAME}-macos-arm64.tar.gz"
+          ( cd dist && shasum -a 256 -c "${TARBALL}.sha256" )
+          test "$(tar -tzf "dist/${TARBALL}")" = anerun
+          mkdir verify
+          tar -xzf "dist/${TARBALL}" -C verify
+          codesign --verify --strict verify/anerun
+          otool -l verify/anerun | awk '
+            $1 == "cmd" { load = $2 }
+            $1 == "name" && $2 ~ /\/CoreAI\.framework\// { found = (load == "LC_LOAD_WEAK_DYLIB") }
+            END { exit !found }
+          '
+          test "$(verify/anerun --version)" = "anerun ${GITHUB_REF_NAME#v}"
+          ANERUN_CHECK_RELEASE_COREAI=1 Tests/Integration/release-binary-launch-smoke.sh verify/anerun
+
+  publish:
+    name: publish verified release
+    needs: [build, verify-macos-15]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified release candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: anerun-release-candidate
+          path: dist
+
+      - name: Publish release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+          fail_on_unmatched_files: true
+          body_path: dist/RELEASE_NOTES.md

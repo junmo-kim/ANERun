@@ -1,0 +1,1 @@
+{"state": "앱이 멈춰서 결제를 진행할 수 없습니다.", "questions": [{"name": "team", "kind": "choice", "instructions": "Which team should handle this?", "candidates": [{"key": "billing", "description": "Charges, refunds, invoices"}, {"key": "tech", "description": "App or site faults"}]}]}

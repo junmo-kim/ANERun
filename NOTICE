@@ -1,0 +1,24 @@
+ANERun
+Copyright (c) 2026 Junmo Kim. Licensed under the MIT License (see LICENSE).
+
+This software works with, but does not include, the following models. Model packages are downloaded
+separately by `anerun models install` and keep their own licenses.
+
+EmbeddingGemma 2 (model weights and tokenizer)
+  Copyright Google LLC. Licensed under the Apache License, Version 2.0.
+  https://huggingface.co/google/embeddinggemma-2
+  Tests/Fixtures/tokenizer.json.xz is the unchanged tokenizer.json of this model, compressed, used
+  only by the test suite. Tests/Fixtures/tokenizer-golden.jsonl.xz holds token ids produced from it.
+
+pplx-embed-v1-0.6b (model weights and tokenizer)
+  Copyright Perplexity AI. Licensed under the MIT License.
+  https://huggingface.co/perplexity-ai/pplx-embed-v1-0.6b
+  Tests/Fixtures/Qwen/tokenizer.json.xz is the compressed model tokenizer used by the test suite.
+  Its license is in tools/convert/PPLX-LICENSE.
+
+Behaviour reproduced (no code copied)
+  The image preprocessing reproduces, to the bit, the output of Hugging Face transformers'
+  Gemma4ImageProcessor (Apache-2.0) with PyTorch/torchvision's antialiased bicubic uint8 resize
+  (BSD-3-Clause), and the JPEG decoder reproduces libjpeg-turbo's default decoding
+  (IJG and BSD-style licenses). The tokenizer follows the tokenizer.json format of Hugging Face
+  tokenizers (Apache-2.0). These projects were used as references and to generate test data.

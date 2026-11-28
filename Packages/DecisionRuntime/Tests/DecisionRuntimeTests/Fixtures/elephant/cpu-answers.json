@@ -1,0 +1,56 @@
+{
+  "english": {
+    "team": {
+      "type": "choice",
+      "choice": "billing",
+      "probabilities": {
+        "billing": 0.993387,
+        "tech": 0.006613
+      },
+      "confidence": 0.986775
+    },
+    "refund": {
+      "type": "noul",
+      "noul": 0.99514
+    }
+  },
+  "image": {
+    "shape": {
+      "type": "choice",
+      "choice": "circle",
+      "probabilities": {
+        "circle": 0.99995,
+        "square": 5e-05
+      },
+      "confidence": 0.9999
+    }
+  },
+  "json": {
+    "urgency": {
+      "type": "score",
+      "score": 1.98117,
+      "legend": {
+        "0": "Can wait",
+        "1": "Today",
+        "2": "Blocking every customer now"
+      },
+      "probabilities": {
+        "0": 0.001895,
+        "1": 0.01504,
+        "2": 0.983065
+      },
+      "confidence": 0.971755
+    }
+  },
+  "korean": {
+    "team": {
+      "type": "choice",
+      "choice": "tech",
+      "probabilities": {
+        "billing": 0.003734,
+        "tech": 0.996266
+      },
+      "confidence": 0.992531
+    }
+  }
+}

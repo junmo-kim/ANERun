@@ -1,0 +1,1 @@
+{"state": "{\"service\":\"checkout\",\"status\":\"down\",\"affected\":\"all customers\"}", "questions": [{"name": "urgency", "kind": "score", "instructions": "How urgent is this?", "candidates": [{"key": "0", "description": "Can wait"}, {"key": "1", "description": "Today"}, {"key": "2", "description": "Blocking every customer now"}]}]}

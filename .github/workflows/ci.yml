@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  pull_request:
+    branches: [main]
+
+# Read-only token: CI only checks out and uploads a short-lived artifact.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: build + test (macOS 26)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Versions
+        run: swift --version && xcodebuild -version
+
+      - name: Build (release, stripped)
+        run: swift build -c release -Xlinker -s
+
+      # CI=true: ModelTests skip (virtualized runners have no Neural Engine and no model).
+      - name: Test
+        run: swift test
+
+      # A test process that aborts (e.g. a Swift runtime check) prints little; macOS writes a crash report a few
+      # seconds later.
+      - name: Wait for crash reports
+        if: failure()
+        run: sleep 20
+
+      - name: Upload test crash reports
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-crash-reports-${{ github.job }}
+          path: ~/Library/Logs/DiagnosticReports/*.ips
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Deterministic mutation fuzzing of the JPEG decoder (Sources/jpeg-fuzz, built above but not released).
+      # A decoder trap kills the tool, which fails the step; the crashing input is kept as an artifact.
+      - name: JPEG decoder fuzz (20k iterations)
+        run: |
+          "$(swift build -c release --show-bin-path)/jpeg-fuzz" --iterations 20000 --seed 1 \
+            --crash-file "$RUNNER_TEMP/jpeg-fuzz-crash.jpg" Tests/Fixtures/images
+
+      - name: Upload the JPEG fuzz crash input
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: jpeg-fuzz-crash
+          path: ${{ runner.temp }}/jpeg-fuzz-crash.jpg
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Peak memory of one image decode at the 40 MP limit (README "Memory"): flat 4:4:4 JPEGs of a few hundred
+      # bytes that declare 8000 x 5000 pixels, baseline (streamed row by row) and progressive (coefficients kept).
+      - name: Image decode memory at the pixel limit
+        # About 1 s on an M4. A decode that does not finish fails here within minutes (jpeg-fuzz gives up after
+        # 60 s) instead of silently using up the job's 30 minutes.
+        timeout-minutes: 5
+        run: |
+          BIN="$(swift build -c release --show-bin-path)"
+          "$BIN/jpeg-fuzz" --flat-jpeg 8000x5000 --sampling 444 --out "$RUNNER_TEMP/flat-40mp.jpg"
+          # 4 MiB on an M4, independent of the image height; one full-size plane at 40 MP would add 38 MiB or more.
+          "$BIN/jpeg-fuzz" --peak "$RUNNER_TEMP/flat-40mp.jpg" --max-peak-mib 16
+          "$BIN/jpeg-fuzz" --flat-jpeg 8000x5000 --sampling 444 --progressive --out "$RUNNER_TEMP/flat-40mp-p.jpg"
+          # 232 MiB on an M4: 229 MiB of coefficients (2 bytes per sample); a full RGB image on top would add 114 MiB.
+          "$BIN/jpeg-fuzz" --peak "$RUNNER_TEMP/flat-40mp-p.jpg" --max-peak-mib 256
+
+      - name: Release workflow contract
+        run: ruby Tests/Integration/release-workflow-contract.rb
+
+      - name: Release binary smoke test (fake runtime, real sockets)
+        run: Tests/Integration/release-binary-launch-smoke.sh .build/release/anerun
+
+      - name: Playground lifecycle (local sockets)
+        run: python3 -I Tests/Integration/playground-lifecycle.py .build/release/anerun
+
+      - name: Binary size
+        run: ls -l .build/release/anerun
+
+      - name: Upload release binary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: anerun-macos-26
+          path: .build/release/anerun
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Release notes generator smoke test
+        run: |
+          LATEST_TAG="$(git tag --sort=-v:refname | head -1)"
+          if [ -z "$LATEST_TAG" ]; then
+            echo "no tags yet, skipping"
+          else
+            OUT="$(scripts/gen-release-notes.sh "$LATEST_TAG")"
+            echo "$OUT"
+            echo "$OUT" | grep -qE "^## anerun ${LATEST_TAG}\$" || { echo "::error::missing title heading"; exit 1; }
+            echo "$OUT" | grep -q "What's Changed" || { echo "::error::missing What's Changed section"; exit 1; }
+          fi
+
+      - name: Release notes generator, decoy heading regression test
+        run: |
+          # The keynote matcher must reject a near-miss CHANGELOG heading ("## v0X1X0" for tag v0.1.0).
+          TMPD="$(mktemp -d)"
+          mkdir -p "$TMPD/scripts"
+          cp scripts/gen-release-notes.sh "$TMPD/scripts/"
+          git -C "$TMPD" init -q
+          git -C "$TMPD" config user.email t@t.com
+          git -C "$TMPD" config user.name t
+          ( cd "$TMPD" && echo x > f.txt && git add f.txt && git commit -qm "Initial" && git tag v0.1.0 )
+          printf '# Changelog\n\n## v0X1X0\n\nDECOY\n' > "$TMPD/CHANGELOG.md"
+          OUT="$(cd "$TMPD" && bash scripts/gen-release-notes.sh v0.1.0)"
+          rm -rf "$TMPD"
+          echo "$OUT" | grep -q "DECOY" && { echo "::error::keynote matcher leaked a non-matching heading"; exit 1; }
+          echo "ok: decoy heading rejected"
+
+      - name: Privacy guard (network APIs only in the listener and the model downloader)
+        run: |
+          if grep -rInE 'URLSession|URLRequest|NWConnection|NWListener|NWPath|NWBrowser|NWEndpoint|NWParameters|import Network([^A-Za-z]|$)|getaddrinfo|CFSocket|dataTask|downloadTask' Sources/ \
+              | grep -vE '^Sources/anerun/(HTTPServer|ModelDownloader)\.swift:'; then
+            echo "::error::a networking API appears outside HTTPServer.swift / ModelDownloader.swift"; exit 1
+          fi
+          echo "ok: networking confined to HTTPServer.swift and ModelDownloader.swift"
+
+  launch-macos-15:
+    name: launch on the deployment target (macOS 15)
+    needs: build-test
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Download release binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: anerun-macos-26
+          path: dist
+
+      - name: Smoke test on macOS 15
+        run: |
+          chmod +x dist/anerun
+          Tests/Integration/release-binary-launch-smoke.sh dist/anerun
+
+  build-older-toolchain:
+    name: build + test with the macOS 15 runner's default Xcode
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Versions
+        run: swift --version && xcodebuild -version
+      - name: Build
+        run: swift build -c release
+      - name: Test
+        run: swift test
+
+      # A test process that aborts (e.g. a Swift runtime check) prints little; macOS writes a crash report.
+      - name: Wait for crash reports
+        if: failure()
+        run: sleep 20
+
+      - name: Upload test crash reports
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-crash-reports-${{ github.job }}
+          path: ~/Library/Logs/DiagnosticReports/*.ips
+          if-no-files-found: ignore
+          retention-days: 7

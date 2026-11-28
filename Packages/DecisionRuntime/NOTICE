@@ -1,0 +1,50 @@
+DecisionRuntime uses locally prepared models. No model weights are distributed here.
+
+Valen-Team/Valen-Decision-1.5-4B (revision 9b0cacc976d7fb72f252ee1adb1564f5f15e462c)
+uses the Apache License, Version 2.0. The Swift request compiler, role pooling, Mixer,
+and response formulas implement the contract of the upstream checkpoint. The exported
+Qwen3.5 backbone and vision tower run in FP16; the Mixer runs in FP32.
+https://huggingface.co/Valen-Team/Valen-Decision-1.5-4B
+
+Built with Fastino GLiDE when the optional GLiDE models are selected.
+GLiDE is developed by Fastino Inc., copyright 2026. GLiDE-2B and GLiDE-9B are
+modified Qwen3.5 models developed by Alibaba Cloud. The optional adapters implement
+the published prompt and response formats. The Fastino Community Licenses and original
+Qwen licenses govern the corresponding upstream model materials.
+https://huggingface.co/fastino/GLiDE-2B/tree/00f122c120cdeed82284106cb77d9bab5a50ad16
+https://huggingface.co/fastino/GLiDE-9B/tree/ab54df5acba0eebf7df45560ffdaacd64e32df3b
+
+Core AI stage layout follows the Qwen3.5 conversion format from
+tinkerbox-ane revision 3d0888ecfe9cb5d744c90e616d18fc26c1b97c11.
+Upstream license and notice files from the selected checkpoint are retained by the packer.
+
+Optional ONYULTEA/K-Decision-9B (revision 29e7d96e37de0c29b498d390dfb38d1e38c17339)
+is released under Apache-2.0. The Korean instruction, choice symbols and JSON skeleton
+follow its published System One renderer. The test BPE subset retains merge ancestry
+from tokenizer.json, SHA-256 a5cd9732badce41de57e6efce8302930ded1c1188c5f81feb2bd6c24c4a1941f.
+https://huggingface.co/ONYULTEA/K-Decision-9B
+https://github.com/onyultea/k-decision/tree/6326490ada9646b30b85850fd33acdb3acb69cc6
+
+The optional Elephant-1 adapter implements Base Labs at Baseten's published
+block-bidirectional attention and slot-LM readout. Its checkpoint is marked MIT.
+Base Labs' chat_template.jinja supplies the role, image and generation markers.
+Its serve.patch adds the block layout and readout used in training and serving.
+The publisher pins OmniJev/OneJev (Apache-2.0) for the inherited qev-labels-v2
+system and question wording, default option descriptions and slot order.
+ANERun renders that format in Swift with the installed tokenizer and slot table.
+Conversion and inference require no OneJev installation.
+OneJev attributes the choice and score confidence formulas to TypeSafe AI
+(MIT, Copyright (c) 2026 TypeSafe AI).
+https://huggingface.co/baselabs/elephant-1/tree/b3f8a93462fb1051a9de031e94a7ff380e254072
+https://github.com/OmniJev/OneJev/tree/81ce62f1597c91e46767d4d02d6ac2e18534fe94
+
+Optional PelaAI/KnowLine-9B-Gen1 (revision 325378d128e9f5eb5088196668f5874c5682b6c0)
+uses the Apache License, Version 2.0. Its rendering and scoring source acknowledges
+llm2jev 0.6.1 (MIT, Copyright (c) 2026 AnyJev contributors). The Swift profile
+implements the published text read-twice layout and label readout.
+https://huggingface.co/PelaAI/KnowLine-9B-Gen1
+
+Optional tattrongvu/Jeffan-9B-1211 (revision 862d1a7a8b64a8d708ddb0b0cd775a740f01841a)
+releases its weights and inference code under Apache-2.0. The Swift implementation
+uses the native two-pass layer loop and state-first CodeRenderer.
+https://huggingface.co/tattrongvu/Jeffan-9B-1211

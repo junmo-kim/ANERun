@@ -1,0 +1,7 @@
+# Conversion and CPU comparison on Apple silicon, Python 3.13 and Xcode 27.
+coreai-torch==0.4.3
+torch==2.9.0
+safetensors==0.8.0
+transformers==5.19.0
+torchvision==0.24.0
+pillow==12.3.0

@@ -1,0 +1,19 @@
+EmbeddingGemma 2 for the Apple Neural Engine (ANERun model package)
+
+This package contains a Core ML conversion of google/embeddinggemma-2
+(https://huggingface.co/google/embeddinggemma-2), Copyright Google LLC / Google DeepMind,
+licensed under the Apache License, Version 2.0. Use of the model must also follow the
+Gemma Prohibited Use Policy (https://ai.google.dev/gemma/prohibited_use_policy).
+
+Files and their origin:
+  EmbeddingGemma2Text.mlpackage / .mlmodelc   converted by tools/convert/build.py from the original
+                                              model.safetensors (weights stored as fp16)
+  embeddings.bf16                             token embedding table extracted unchanged (bf16) from
+                                              the original model.safetensors
+  tokenizer.json                              the original tokenizer, unchanged
+  EmbeddingGemma2Vision.mlpackage / .mlmodelc converted by ANERun from the Google vision tower and projection
+  position_embeddings.f16                     first 1024 learned patch positions on each axis, converted to fp16
+
+Modifications relative to the original model: re-expression of the text and vision encoders as Core ML functions
+(fixed-length buckets, per-layer long-context functions), fp16 weights and activations, numerically
+neutral rewrites listed in the model card. No weights were retrained or altered beyond fp16 rounding.
